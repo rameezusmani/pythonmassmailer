@@ -37,4 +37,5 @@ CHANGING OTHER VARIABLES
   
 FUTURE PLANS
 ============
+- SSL/TLS support
 - Adding proxy support
