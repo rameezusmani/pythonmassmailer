@@ -34,3 +34,7 @@ CHANGING OTHER VARIABLES
 - You can change values like number of threads to use, maximum number of email to send, sender name etc inside load_config procedure in massmailerhelper.py. For example if you want to set number of threads to 500 then you can set this line inside load_config procedure
 
   config.totalThreads=100
+  
+FUTURE PLANS
+============
+- Adding proxy support
