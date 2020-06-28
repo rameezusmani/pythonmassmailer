@@ -82,10 +82,10 @@ def check_host(ip,port):
 def load_config():
     my_tag="CONFIG"
     config.totalThreads=100 #number of total threads to run
-    config.subject="this will be your subject" #subject of emails
     config.fromName="Sender name to use" #body of emails
     config.maxEmailsToSend=50 #maximum number of emails to send
-    config.body="This will be the email body"
+    config.subject="this will be your subject" #subject of emails
+    config.body="This will be the email body" #body of emails
     
     write_mysmtp_log("Reading SMTPs...",my_tag,False,False)
     #load smtps from smtps.txt file
