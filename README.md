@@ -34,7 +34,7 @@ CHANGING SUBJECT and BODY
 
   config.subject="this will be your subject"
   
-  config.body="This will be the email body"
+  config.body="This will be the email body" #you can use HTML in body
 
 CHANGING OTHER VARIABLES
 ========================
