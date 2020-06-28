@@ -206,6 +206,9 @@ class NonProxyEmailSender(EmailSender):
             #0 to not output any debug message
             #3 to output all debug messages
             self.server.set_debuglevel(0)
+            #login if needed
+            if (self.smtp.requiresAuthentication):
+                self.server.login(self.smtp.username,self.smtp.password)
         #call base EmailSender send_email
         super().send_email()
 
