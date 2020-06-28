@@ -2,6 +2,12 @@
 
 pythonmassmailer is a very simple multithreaded mass emailing python script that uses smtplib.SMTP class. I tested it with 400 threads at a time and it sent 1000s of emails within few seconds using few (but working) SMTP servers.
 
+HOW IT IS DIFFERENT
+==================
+- It is multithreaded and can execute any number of threads configured in the script
+- You can use unlimited number of SMTP servers at the same time
+- It uses SMTP server(s) efficiently so they are not overloaded
+
 PREREQUISITES
 =============
 if you get error like "socks" module not found then please install PySocks using
