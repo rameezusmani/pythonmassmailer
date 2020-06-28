@@ -7,6 +7,7 @@ HOW IT IS DIFFERENT
 - It is multithreaded and can execute any number of threads configured in the script
 - You can use unlimited number of SMTP servers at the same time
 - It uses SMTP server(s) efficiently so they are not overloaded
+- 10K emails can be sent without any problem using few SMTP servers
 
 PREREQUISITES
 =============
