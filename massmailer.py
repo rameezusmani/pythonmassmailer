@@ -4,6 +4,22 @@ import sys
 from datetime import datetime
 from massmailerhelper import *
 import smtplib
+from threading import Lock
+
+proxiesLock=Lock()
+
+#removes proxy for the list of proxies
+def drop_proxy(proxy):
+    proxiesLock.acquire()
+    for x in proxiesQueue:
+        try:
+            if (x.ip==proxy.ip and x.port==proxy.port):
+                proxiesQueue.remove(x)
+                break
+        except Exception as err:
+            pass
+
+    proxiesLock.release()
 
 def send_email_thread(tconfig:MassMailerThreadConfig):
     myTag="Thread#"+str(tconfig.threadIndex+1) #set unique tag of thread so it can be identified in logs
@@ -27,7 +43,8 @@ def send_email_thread(tconfig:MassMailerThreadConfig):
                 #as this thread will die
                 config.totalThreads-=1
                 return
-            stateObject.smtp=None
+            stateObject.proxy=False
+            stateObject.smtp=False
             try:
                 #try to get next smtp server from the queue
                 stateObject.smtp=smtpsQueue.get_nowait()
@@ -39,14 +56,18 @@ def send_email_thread(tconfig:MassMailerThreadConfig):
                 #get out of the loop
                 break
             smtp=stateObject.smtp
+            proxy=stateObject.proxy
             #check if smtp has specified port opened
-            if (not check_host(smtp.ip,smtp.port)):
+            if (not smtp.has_port_opened and not check_host(smtp.ip,smtp.port)):
                 #if port is closed then go back to While loop to get next smtp from the queue
                 write_mysmtp_log("SMTP " + smtp.ip + " have port " + str(smtp.port) + " closed",stateObject.threadTag,True,True)
                 continue
-
+            #set port opened of smtp to true
+            smtp.has_port_opened=True
             #set number of current attempts to 0
             stateObject.smtpTryCount=0
+            #set number of current proxy attempts to 0
+            stateObject.proxyTryCount=0
             #loop indefinitely
             while(True):
                 #check if maximum number of emails are already sent
@@ -55,6 +76,44 @@ def send_email_thread(tconfig:MassMailerThreadConfig):
                     #as this thread will die
                     config.totalThreads-=1
                     return
+                #if send with proxy enabled
+                if (stateObject.config.sendWithProxy):
+                    #lock the proxies list
+                    proxiesLock.acquire()
+                    #if there are no proxies remaining in the list
+                    if (len(proxiesQueue)==0):
+                        write_mysmtp_log("No proxies available in list",stateObject.threadTag,True,True)
+                        #decrement current threads by 1 because this thread will stop
+                        config.totalThreads-=1
+                        #release the lock on proxies list
+                        proxiesLock.release()
+                        #return from thread function (Exit the thread)
+                        return
+                    #get random index for a proxy server
+                    proxyIndex=random.randint(0,len(proxiesQueue)-1)
+                    #set current proxy to a random proxy server
+                    stateObject.proxy=proxiesQueue[proxyIndex]
+                    #release the lock on proxies list
+                    proxiesLock.release()
+                    #check if proxy specified port opened
+                    if (not stateObject.proxy.has_port_opened and not check_host(stateObject.proxy.ip,stateObject.proxy.port)):
+                        write_mysmtp_log("PROXY "+stateObject.proxy.ip+" have port "+str(stateObject.proxy.port)+" closed",stateObject.threadTag,True,True)
+                        #drop this proxy from the list of proxies
+                        drop_proxy(proxy)
+                        continue
+                    #set port opened for this proxy to True
+                    stateObject.proxy.has_port_opened=True
+                    try:
+                        #set proxy server of email sender
+                        sender.set_proxy_server(stateObject.proxy)
+                    except queue.Empty as err:
+                        write_mysmtp_log("Couldn't find a free proxy server",stateObject.threadTag,True,True)
+                        #put back the smtp server in case of error in setting proxy server
+                        smtpsQueue.put_nowait(stateObject.smtp)
+                        time.sleep(2) #2 seconds
+                        #continue with the thread again
+                        continue
+                proxy=stateObject.proxy
                 #email will be the recipient's email object
                 email=False
                 try:
@@ -82,11 +141,17 @@ def send_email_thread(tconfig:MassMailerThreadConfig):
                         #get timestamp at the time of attempt
                         dtStart=time.time()
                         write_mysmtp_log("SMTP: "+smtp.ip+":"+str(smtp.port),stateObject.threadTag,True,False)    
+                        if (stateObject.config.sendWithProxy):
+                            write_mysmtp_log("PROXY: "+proxy.ip+":"+str(proxy.port),stateObject.threadTag,True,False)
                         #attempt to send the mail
                         sender.send_email()
                         #calculate difference between current timestamp and starting timestamp
                         tsDiff=time.time()-dtStart
-                        write_mysmtp_log("Email sent to " + email.Mail + "(SMTP: " + smtp.ip + ") in " + str(tsDiff) + " seconds", myTag,True,False)
+                        logText="Email sent to " + email.Mail + "(SMTP: " + smtp.ip + ":"+str(smtp.port)+")"
+                        if (stateObject.config.sendWithProxy):
+                            logText+=" (PROXY: "+proxy.ip+":"+str(proxy.port)+")"
+                        logText+=" in "+str(tsDiff)+" seconds"
+                        write_mysmtp_log(logText, myTag,True,False)
                         #email is successfully sent
                         #set Tries to 0 (not required)
                         email.Tries=0
