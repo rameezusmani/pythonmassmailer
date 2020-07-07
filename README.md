@@ -22,6 +22,19 @@ ip_address:port,email_address,password,1(0 for no authentication)
 
 - Recipients email addresses must be listed in emails.txt file. Each line in emails.txt is a recipient email address
 
+PROXY SERVERS
+=============
+- Proxy servers must be listed in proxies.txt file. Each line in proxies.txt file is a proxy server in following format
+ip_address:port,proxy_type(socks4,socks5,http)
+
+EXAMPLE: 123.456.789.1:1080,socks5
+
+ENABLE/DISABLE PROXY SUPPORT
+============================
+- You can change sendWithProxy of class MassMailerConfig in massmailerhelper.py file to toggle the proxy support.
+    True = use proxy
+    False = dont use proxy
+
 RUNNING THE SCRIPT
 ==================
 - After you have setup your SMTP servers in smtps.txt and recipients in emails.txt then you can run the script like this:
@@ -45,4 +58,3 @@ CHANGING OTHER VARIABLES
 FUTURE PLANS
 ============
 - SSL/TLS support
-- Adding proxy support
