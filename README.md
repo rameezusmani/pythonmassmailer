@@ -1,6 +1,13 @@
 # pythonmassmailer
 
-pythonmassmailer is a very simple mass emailing python script that uses smtplib.SMTP class
+pythonmassmailer is a very simple multithreaded mass emailing python script that uses smtplib.SMTP class. I tested it with 400 threads at a time and it sent 1000s of emails within few seconds using few (but working) SMTP servers.
+
+HOW IT IS DIFFERENT
+==================
+- It is multithreaded and can execute any number of threads configured in the script
+- You can use unlimited number of SMTP servers at the same time
+- It uses SMTP server(s) efficiently so they are not overloaded
+- 10K emails can be sent without any problem using few SMTP servers
 
 PREREQUISITES
 =============
@@ -27,7 +34,7 @@ CHANGING SUBJECT and BODY
 
   config.subject="this will be your subject"
   
-  config.body="This will be the email body"
+  config.body="This will be the email body" #you can use HTML in body
 
 CHANGING OTHER VARIABLES
 ========================
@@ -37,4 +44,5 @@ CHANGING OTHER VARIABLES
   
 FUTURE PLANS
 ============
+- SSL/TLS support
 - Adding proxy support
