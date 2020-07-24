@@ -35,6 +35,11 @@ ENABLE/DISABLE PROXY SUPPORT
     True = use proxy
     False = dont use proxy
 
+ADDING ATTACHMENT(S)
+====================
+- You can add attachment to individual EmailToSend objects using their Attachments list property
+- testmailer.py demonstrates how to use that
+
 RUNNING THE SCRIPT
 ==================
 - After you have setup your SMTP servers in smtps.txt and recipients in emails.txt then you can run the script like this:
@@ -57,4 +62,4 @@ CHANGING OTHER VARIABLES
   
 FUTURE PLANS
 ============
-- SSL/TLS support
+- SSL support

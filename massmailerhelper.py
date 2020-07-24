@@ -7,6 +7,12 @@ import socket
 from smtplib import SMTP
 import time
 import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+#from email.mime.base import MIMEBase
+#from email import encoders
+import os
 
 class MassMailerConfig:
     totalThreads=0 #how many total threads are running
@@ -14,7 +20,7 @@ class MassMailerConfig:
     subject="" #subject of eamil to send
     body="" #body of email to send
     maxEmailsToSend=0 #maximum number of emails to send before stopping
-    sendWithProxy=True #for future reference if we add proxy support
+    sendWithProxy=False #True if we want to send using proxy server
 
 class MassMailerSmtp:
     MAX_TRIES=5 #static variable for maximum number of failed attemps before this smtp server is dropped
@@ -25,6 +31,7 @@ class MassMailerSmtp:
     password="" 
     host="" #host part of smtp server
     requiresAuthentication=False #whether this smtp server requires authentication or not
+    useTls=False #use tls or not
     has_port_opened=False #whether it has a port opened for connection or not
 
 class MassMailerProxy:
@@ -37,6 +44,7 @@ class EmailToSend:
     MAX_TRIES=20 #static variable for maximum number of failed attempts email address can have before getting dropped
     Mail = "" #email address
     Tries = 0 #how many failed attempts so far
+    Attachments=[] #file attachments
     
 class MassMailerThreadConfig:
     threadIndex=0 #index of this thread
@@ -171,6 +179,10 @@ def load_config():
     fp.close()
     write_mysmtp_log("Proxies detected: "+str(len(proxiesQueue)),my_tag,True,True)
 
+#helper function to get name of file from full path
+def get_filename_from_path(filepath:str):
+    return os.path.basename(filepath)
+
 #base class to send emails
 class EmailSender:
     config:MassMailerConfig #config object
@@ -184,6 +196,12 @@ class EmailSender:
     def __init__(self,config: MassMailerConfig):
         self.config=config
         self.server=False #set server variable to False
+
+    #child classes must call this after they have instantiate a new SMTP object
+    def _new_server_instance(self):
+        #0 to not output any debug message
+        #3 to output all debug messages
+        self.server.set_debuglevel(0)
 
     def close_server(self):
         try:
@@ -229,17 +247,51 @@ class EmailSender:
         completeBody+="\r\n"+self.body #empty line(\r\n) after headers and then message body
         return completeBody
 
-    #method to send the email
     def send_email(self):
-        #construct body to be sent
-        completeBody=self.build_complete_body()
         #set from in the form "SENDER NAME <senderemail@domain.com>"
         myfrom=self.config.fromName+" <"+self.smtp.email+">"
         #set to as recipient's email address
         myto=self.email.Mail
-        #call sendmail function of SMTP class
-        #self.server is always an instance of smtplib.SMTP class or a class inherited from smtplib.SMTP
-        self.server.sendmail(myfrom,myto,completeBody.encode("UTF-8"))
+        #set body
+        body = self.body
+        #set subject
+        subject = self.subject
+        #construct a multipart message object
+        msg = MIMEMultipart()
+        #sender email
+        msg['From'] = myfrom
+        #recipient email
+        msg['To'] = myto
+        #subject of email
+        msg['Subject'] = subject
+        #add body as MIME text/html object
+        msg.attach(MIMEText(body, 'html'))
+        #if there are attachments in the email object
+        if (len(self.email.Attachments)>0):
+            #loop through each attachment
+            for x in self.email.Attachments:
+                #x will contain file path of the attachment file
+                #get file name from file path
+                fname=get_filename_from_path(x)
+                #add the attachment as content/octet-stream
+                att = MIMEApplication(open(x,'rb').read())
+                #add header for filename
+                att.add_header('content-disposition','attachment',filename=fname)
+                #attach the mime par to the message object
+                msg.attach(att)
+        #convert msg to string
+        text = msg.as_string()
+        #in case of tls
+        if (self.smtp.useTls):
+            #send EHLO command
+            self.server.ehlo()
+            #start tls
+            self.server.starttls()
+        #login if needed
+        if (self.smtp.requiresAuthentication):
+            self.server.login(self.smtp.username,self.smtp.password)
+        #send to server 
+        self.server.sendmail(myfrom,myto,text) 
 
 #child class of EmailSender to send emails without proxy
 class NonProxyEmailSender(EmailSender):
@@ -252,12 +304,7 @@ class NonProxyEmailSender(EmailSender):
         if (self.server==False):
             #create instance of smtplib.SMTP with timeout of 10 seconds
             self.server = SMTP(host=self.smtp.ip,port=self.smtp.port,timeout=10)
-            #0 to not output any debug message
-            #3 to output all debug messages
-            self.server.set_debuglevel(0)
-            #login if needed
-            if (self.smtp.requiresAuthentication):
-                self.server.login(self.smtp.username,self.smtp.password)
+            super()._new_server_instance()
         #call base EmailSender send_email
         super().send_email()
 
@@ -266,52 +313,17 @@ class ProxyEmailSender(EmailSender):
     def __init__(self,config:MassMailerConfig):
         super().__init__(config)
 
-    def ok_or_raise(self,reply,expected=[250]):
-        for x in expected:
-            if (reply[0]==x):
-                return
-        raise smtplib.SMTPException(reply)
-
-    def send_lowlevel_email(self,completeBody):
-        heloArgument=self.proxy.ip
-        server=self.server
-        reply=server.ehlo(heloArgument)
-        if (reply[0]!=250):
-            reply=server.helo(heloArgument)
-        self.ok_or_raise(reply)
-        reply=server.docmd("mail","FROM:<"+self.smtp.email+">")
-        self.ok_or_raise(reply)
-        reply=server.docmd("rcpt","TO:<"+self.email.Mail+">")
-        self.ok_or_raise(reply)
-        reply=server.docmd("data")
-        self.ok_or_raise(reply,[250,354])
-        if (reply[0]==250):
-            reply=server.getreply()
-        self.ok_or_raise(reply,[354])
-        server.send(completeBody.encode("UTF-8"))
-        reply=server.getreply()
-        self.ok_or_raise(reply)
-        try:
-            reply=server.quit()
-            server.close()
-            self.server=False
-        except Exception as err:
-            pass
-
     def send_email(self):
-        self.proxy_type=socks.PROXY_TYPE_SOCKS4
-        if (self.proxy.proxy_type=="socks5"):
-            self.proxy_type=socks.PROXY_TYPE_SOCKS5
-        elif(self.proxy.proxy_type=="http"):
-            self.proxy_type=socks.PROXY_TYPE_HTTP
-        self.server = SMTP(host=self.smtp.ip,port=self.smtp.port,proxy_host=self.proxy.ip,proxy_port=self.proxy.port,proxy_type=self.proxy_type,timeout=15)
-        self.server.set_debuglevel(0)
-        #login if needed
-        if (self.smtp.requiresAuthentication):
-            self.server.login(self.smtp.username,self.smtp.password)
-        completeBody=self.build_complete_body()
-        completeBody+="\r\n.\r\n"
-        self.send_lowlevel_email(completeBody)
+        if (self.server==False):
+            self.proxy_type=socks.PROXY_TYPE_SOCKS4
+            if (self.proxy.proxy_type=="socks5"):
+                self.proxy_type=socks.PROXY_TYPE_SOCKS5
+            elif(self.proxy.proxy_type=="http"):
+                self.proxy_type=socks.PROXY_TYPE_HTTP
+            self.server = SMTP(host=self.smtp.ip,port=self.smtp.port,proxy_host=self.proxy.ip,proxy_port=self.proxy.port,proxy_type=self.proxy_type,timeout=15)
+            super()._new_server_instance()
+        #call base EmailSender send_email
+        super().send_email()
 
 #global variables start
 config=MassMailerConfig() #create instance of MassMailerConfig and set as global config object
