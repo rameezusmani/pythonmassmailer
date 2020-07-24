@@ -20,7 +20,7 @@ class MassMailerConfig:
     subject="" #subject of eamil to send
     body="" #body of email to send
     maxEmailsToSend=0 #maximum number of emails to send before stopping
-    sendWithProxy=True #for future reference if we add proxy support
+    sendWithProxy=False #True if we want to send using proxy server
 
 class MassMailerSmtp:
     MAX_TRIES=5 #static variable for maximum number of failed attemps before this smtp server is dropped
@@ -31,6 +31,7 @@ class MassMailerSmtp:
     password="" 
     host="" #host part of smtp server
     requiresAuthentication=False #whether this smtp server requires authentication or not
+    useTls=False #use tls or not
     has_port_opened=False #whether it has a port opened for connection or not
 
 class MassMailerProxy:
@@ -196,14 +197,11 @@ class EmailSender:
         self.config=config
         self.server=False #set server variable to False
 
-    #it must be called by child classes after they have instantiate a new SMTP object
+    #child classes must call this after they have instantiate a new SMTP object
     def _new_server_instance(self):
         #0 to not output any debug message
         #3 to output all debug messages
         self.server.set_debuglevel(0)
-        #login if needed
-        if (self.smtp.requiresAuthentication):
-            self.server.login(self.smtp.username,self.smtp.password)
 
     def close_server(self):
         try:
@@ -283,6 +281,15 @@ class EmailSender:
                 msg.attach(att)
         #convert msg to string
         text = msg.as_string()
+        #in case of tls
+        if (self.smtp.useTls):
+            #send EHLO command
+            self.server.ehlo()
+            #start tls
+            self.server.starttls()
+        #login if needed
+        if (self.smtp.requiresAuthentication):
+            self.server.login(self.smtp.username,self.smtp.password)
         #send to server 
         self.server.sendmail(myfrom,myto,text) 
 
@@ -317,7 +324,7 @@ class ProxyEmailSender(EmailSender):
             super()._new_server_instance()
         #call base EmailSender send_email
         super().send_email()
-        
+
 #global variables start
 config=MassMailerConfig() #create instance of MassMailerConfig and set as global config object
 totalEmailsSent=[0,0] #0th index = total emails sent , 1st index = total seconds taken so far
