@@ -2,17 +2,22 @@ from massmailerhelper import *
 #this script will test sending of email using Gmail smtp server
 load_config()
 config.fromName="UglyGuy InSlippers"
-smtp=smtpsQueue.get()
+#construct a new test smtp server
+smtp=MassMailerSmtp()
+smtp.host="gmail.com"
 smtp.ip="smtp.gmail.com"
 smtp.port=587
-smtp.email="***************@gmail.com"
-smtp.username="***********@gmail.com"
-smtp.password="***********"
+smtp.email="uglyguyinslippers@gmail.com"
+smtp.username="uglyguyinslippers@gmail.com"
+smtp.password="****************"
 smtp.requiresAuthentication=True
 smtp.useTls=True
-email=emailsQueue.get()
-email.Mail="*****@recdomain.com"
+#construct new recipient
+email=EmailToSend()
+email.Mail="***********@hotmail.com"
+#add 1 attachment
 email.Attachments.append("attachment.txt")
+#call email.Attachments.append multiple times to add multiple attachments
 print("Testing with: "+smtp.ip+":"+str(smtp.port)+". Sending to email: "+email.Mail)
 sender=NonProxyEmailSender(config)
 sender.set_smtp_server(smtp)
